@@ -11,6 +11,43 @@ export function findFeedContainer(): HTMLElement | null {
   )
 }
 
+export function getChainFromNode(node: Element): string | null {
+  if (!(node instanceof HTMLAnchorElement)) return null
+
+  if (!node.classList.contains("ds-dex-table-row")) return null
+  if (!node.href) return null
+
+  // Pull chain from the URL
+  try {
+    const url = new URL(node.href, location.origin)
+    const segs = url.pathname.split("/").filter(Boolean)
+    return segs[0]?.toLowerCase() ?? null // e.g. "ethereum", "bsc", etc.
+  } catch {
+    // Fallback for edge-cases
+    const href = node.getAttribute("href") || ""
+    const clean = href.split("#")[0].split("?")[0]
+    const parts = clean.split("/").filter(Boolean)
+    return parts[1]?.toLowerCase() ?? null // e.g. "ethereum", "bsc", etc.
+  }
+}
+
+export function getPairFromNode(node: Element): string | null {
+  if (!(node instanceof HTMLAnchorElement)) return null
+  if (!node.classList.contains("ds-dex-table-row")) return null
+  if (!node.href) return null
+  if (!node.querySelector(".ds-dex-table-row-base-token-symbol")) return null
+  if (!node.querySelector(".ds-dex-table-row-quote-token-symbol")) return null
+
+  const symbol = node.querySelector(
+    ".ds-dex-table-row-base-token-symbol"
+  )?.textContent
+  const quoteToken = node.querySelector(
+    ".ds-dex-table-row-quote-token-symbol"
+  )?.textContent
+
+  return `${symbol ? `${symbol}` : ""}${quoteToken ? `/${quoteToken}` : ""}`
+}
+
 export function getPairIdFromNode(node: Element): string | null {
   if (!(node instanceof HTMLAnchorElement)) return null
 

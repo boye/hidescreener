@@ -5,6 +5,8 @@ import { createRoot } from "react-dom/client"
 
 import {
   findFeedContainer,
+  getChainFromNode,
+  getPairFromNode,
   getPairIdFromNode,
   isDexscreener,
   isPairRow
@@ -26,14 +28,18 @@ import {
 
 import "~/styles/content.css"
 
+import type { HiddenEntry } from "~types"
+
 export const config: PlasmoCSConfig = {
   matches: ["https://dexscreener.com/*"],
   run_at: "document_end",
   all_frames: false
 }
 
-async function processRow(row: HTMLElement, hidden: Set<string>) {
+async function processRow(row: HTMLAnchorElement, hidden: Set<string>) {
   const id = getPairIdFromNode(row)
+  const symbols = getPairFromNode(row)
+  const chain = getChainFromNode(row)
   if (!id) return
   if (hidden.has(id)) {
     // Row verdwijnt via CSS; overlay verwijderen
@@ -41,7 +47,7 @@ async function processRow(row: HTMLElement, hidden: Set<string>) {
     return
   }
   ensureEyeOverlay(row, async () => {
-    await hidePair(id)
+    await hidePair(id, row.href, symbols, chain)
     addHiddenId(id)
     removeEyeOverlay(row)
     document.dispatchEvent(new CustomEvent("dslh:refresh"))
@@ -53,7 +59,7 @@ function scanAndEnhance(container: HTMLElement, hidden: Set<string>) {
   container
     .querySelectorAll<HTMLAnchorElement>("a.ds-dex-table-row")
     .forEach((row) => {
-      processRow(row as unknown as HTMLElement, hidden)
+      processRow(row as unknown as HTMLAnchorElement, hidden)
     })
   scheduleRepositionBurst(300)
 }
@@ -61,7 +67,7 @@ function scanAndEnhance(container: HTMLElement, hidden: Set<string>) {
 // Paneel UI (ongewijzigd)
 function Panel() {
   const [open, setOpen] = useState(false)
-  const [items, setItems] = useState<{ id: string; ts: number }[]>([])
+  const [items, setItems] = useState<HiddenEntry[]>([])
   const [count, setCount] = useState(0)
 
   const refresh = async () => {
@@ -88,7 +94,7 @@ function Panel() {
       {open && (
         <div className="dslh-list" role="dialog" aria-label="Hidden pairs">
           {items.length === 0 && (
-            <div className="dslh-row">Geen verborgen pairs.</div>
+            <div className="dslh-row">No hidden pairs.</div>
           )}
           {items.map((e) => (
             <div className="dslh-row" key={e.id}>
@@ -101,11 +107,14 @@ function Panel() {
                 }}>
                 Unhide
               </button>
-              <a
-                href={`https://dexscreener.com/ethereum/${e.id}`}
-                target="_blank"
-                rel="noreferrer">
-                {e.id}
+              <a href={e.url} target="_blank" rel="noreferrer">
+                <img
+                  alt=""
+                  width={16}
+                  src={`https://dd.dexscreener.com/ds-data/chains/${e.chain}.png`}
+                  loading="lazy"
+                />{" "}
+                {e.symbols} - {e.id}
               </a>
             </div>
           ))}
@@ -170,11 +179,11 @@ export default function ContentScript() {
           mut.addedNodes.forEach((n) => {
             if (n instanceof HTMLElement) {
               if (isPairRow(n)) {
-                processRow(n as unknown as HTMLElement, freshHidden)
+                processRow(n as unknown as HTMLAnchorElement, freshHidden)
               } else {
                 // @ts-ignore
                 n.querySelectorAll("a.ds-dex-table-row").forEach((a) => {
-                  processRow(a as unknown as HTMLElement, freshHidden)
+                  processRow(a as unknown as HTMLAnchorElement, freshHidden)
                 })
               }
             }
@@ -219,7 +228,7 @@ export default function ContentScript() {
             `.ds-dex-table a.ds-dex-table-row[href*='/${detail.id}?'], ` +
             `.ds-dex-table a.ds-dex-table-row[href*='/${detail.id}#']`
           container.querySelectorAll<HTMLAnchorElement>(sel).forEach((row) => {
-            processRow(row as unknown as HTMLElement, freshHidden)
+            processRow(row as unknown as HTMLAnchorElement, freshHidden)
           })
         } else {
           scanAndEnhance(container, freshHidden)

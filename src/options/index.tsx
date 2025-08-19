@@ -22,7 +22,7 @@ async function Options() {
       <div style={{ display: "grid", gap: 8 }}>
         {items.length === 0 && <div>No hidden pairs.</div>}
         <div style={{ display: "grid", gap: 8 }}>
-          {items.length === 0 && <div>Geen verborgen items.</div>}
+          {items.length === 0 && <div>No hidden items.</div>}
           {items.map((it) => (
             <div
               key={it.id}
