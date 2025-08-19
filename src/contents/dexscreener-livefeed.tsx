@@ -42,7 +42,7 @@ async function processRow(row: HTMLAnchorElement, hidden: Set<string>) {
   const chain = getChainFromNode(row)
   if (!id) return
   if (hidden.has(id)) {
-    // Row verdwijnt via CSS; overlay verwijderen
+    // Row disappears via CSS; remove overlay
     removeEyeOverlay(row)
     return
   }
@@ -64,7 +64,6 @@ function scanAndEnhance(container: HTMLElement, hidden: Set<string>) {
   scheduleRepositionBurst(300)
 }
 
-// Paneel UI (ongewijzigd)
 function Panel() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<HiddenEntry[]>([])
@@ -102,7 +101,7 @@ function Panel() {
                 className={clsx("dslh-btn dslh-ghost")}
                 onClick={async () => {
                   await unhidePair(e.id)
-                  removeHiddenId(e.id) // triggert css-change event
+                  removeHiddenId(e.id) // triggers css-change event
                   document.dispatchEvent(new CustomEvent("dslh:refresh"))
                 }}>
                 Unhide
@@ -161,9 +160,9 @@ export default function ContentScript() {
     let detachRoute: (() => void) | null = null
     let detachContainer: (() => void) | null = null
 
-    // Functie die de container mount (MO, listeners) en initial scan uitvoert
+    // Function that mounts the container (MO, listeners) and performs initial scan
     const attachToContainer = async () => {
-      // cleanup vorige attach
+      // cleanup previous attach
       detachContainer?.()
       const container = findFeedContainer() || document.body
 
@@ -172,7 +171,7 @@ export default function ContentScript() {
       setHiddenIds(hidden)
       scanAndEnhance(container, hidden)
 
-      // Observer voor dynamische items
+      // Observer for dynamic items
       const observer = new MutationObserver(async (muts) => {
         const freshHidden = await getHiddenSet()
         for (const mut of muts) {
@@ -193,7 +192,7 @@ export default function ContentScript() {
       })
       observer.observe(container, { childList: true, subtree: true })
 
-      // Sort/filter triggers → korte RAF-burst
+      // Sort/filter triggers → short RAF burst
       const burst = () => scheduleRepositionBurst(700)
       const onClick = (e: Event) => {
         const t = e.target as Element | null
@@ -216,7 +215,7 @@ export default function ContentScript() {
       const ro = new ResizeObserver(() => burst())
       ro.observe(container)
 
-      // Luister op CSS-hiding updates (add/remove/set) zodat unhide direct overlay terugzet
+      // Listen for CSS-hiding updates (add/remove/set) so unhide immediately restores overlay
       const onCssChange = async (e: any) => {
         scheduleRepositionBurst(400)
         const detail = e?.detail as { action?: string; id?: string } | undefined
@@ -236,7 +235,7 @@ export default function ContentScript() {
       }
       document.addEventListener("dslh:css-change", onCssChange as any)
 
-      // Detacher voor deze container
+      // Detacher for this container
       detachContainer = () => {
         observer.disconnect()
         ro.disconnect()
@@ -250,7 +249,7 @@ export default function ContentScript() {
 
     // Init + route watcher
     const reattachSoon = () => {
-      // 2 RAF's om SPA DOM-swaps ruimte te geven
+      // 2 RAFs to give SPA DOM-swaps room
       requestAnimationFrame(() =>
         requestAnimationFrame(() => attachToContainer())
       )

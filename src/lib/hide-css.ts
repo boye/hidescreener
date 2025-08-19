@@ -1,8 +1,8 @@
-// CSS-based hiding zonder DOM-mutaties in de React-subtree
-// Voor Dexscreener: row is <a class="ds-dex-table-row">. We targetten die direct.
+// CSS-based hiding without DOM mutations in the React subtree
+// For Dexscreener: row is <a class="ds-dex-table-row">. We target those directly.
 
 const STYLE_ID = "dslh-hide-style"
-const present = new Set<string>() // -> huidige set van verborgen IDs
+const present = new Set<string>() // -> current set of hidden IDs
 
 function ensureStyleEl(): HTMLStyleElement {
   let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null
@@ -19,7 +19,7 @@ function escapeForAttr(v: string) {
   return v.replace(/["\\]/g, "\\$&")
 }
 
-// Bouw 1 compacte selector die varianten vangt: einde van URL, ?query, #hash
+// Build one compact selector that catches variants: end of URL, ?query, #hash
 function ruleFor(id: string) {
   const v = escapeForAttr(id)
   return (
@@ -33,11 +33,11 @@ function ruleFor(id: string) {
 
 function rebuildSheet() {
   const el = ensureStyleEl()
-  // Eén write; geen CSSOM indexgedoe
+  // One write; no CSSOM index hassle
   el.textContent = Array.from(present, ruleFor).join("\n")
 }
 
-// Kleiner hulpfunctie: fire een event NA aanpassing (microtask)
+// Small helper function: fire an event AFTER modification (microtask)
 function emitCssChange(action: "set" | "add" | "remove", id?: string) {
   queueMicrotask(() =>
     document.dispatchEvent(

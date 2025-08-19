@@ -101,7 +101,7 @@ export function scheduleRepositionBurst(ms = 600) {
   }
 }
 
-// viewport changes ⇒ overlays bijwerken
+// viewport changes ⇒ update overlays
 document
   .querySelector("main > div > div:nth-child(2)")
   .addEventListener("scroll", () => scheduleRepositionBurst(200), {

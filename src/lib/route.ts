@@ -1,4 +1,4 @@
-// Eenvoudige SPA-route watcher: vuurt één event als href wijzigt.
+// Simple SPA route watcher: fires one event when href changes.
 export const ROUTE_EVENT_NAME = "dslh:route-change"
 
 let lastHref = location.href
@@ -21,7 +21,7 @@ export function installRouteListener() {
 
   history.pushState = function (...args) {
     const ret = origPush.apply(this, args as any)
-    // microtask → laat eventuele sync DOM-swaps eerst gebeuren
+    // microtask → lets any sync DOM swaps happen first
     queueMicrotask(emitIfChanged)
     return ret
   } as typeof history.pushState
@@ -38,7 +38,7 @@ export function installRouteListener() {
   window.addEventListener("popstate", onPop)
   window.addEventListener("hashchange", onHash)
 
-  // Fallback polling (sommige frameworks muteren href “stil”)
+  // Fallback polling (some frameworks mutate href “silently”)
   const iv = window.setInterval(emitIfChanged, 500)
 
   // Cleanup

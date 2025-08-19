@@ -1,5 +1,4 @@
-// DOM helpers en heuristieken om pair-rows te vinden
-
+// DOM helpers
 export function isDexscreener(): boolean {
   return /(^|\.)dexscreener\.com$/i.test(location.hostname)
 }
@@ -67,8 +66,4 @@ export function getPairIdFromNode(node: Element): string | null {
 
 export function isPairRow(el: Element): el is HTMLElement {
   return el instanceof HTMLAnchorElement && el.matches("a.ds-dex-table-row")
-}
-
-export function markHidden(row: HTMLElement) {
-  row.classList.add("dslh-hidden")
 }
