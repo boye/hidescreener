@@ -10,6 +10,14 @@ export function findFeedContainer(): HTMLElement | null {
   )
 }
 
+export function findScrollContainer(): HTMLElement | null {
+  return (
+    document.querySelector<HTMLElement>("main > div > div:nth-child(2)") ||
+    (document.scrollingElement as HTMLElement) ||
+    document.documentElement
+  )
+}
+
 export function getChainFromNode(node: Element): string | null {
   if (!(node instanceof HTMLAnchorElement)) return null
 

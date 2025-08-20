@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 
 import {
   findFeedContainer,
+  findScrollContainer,
   getChainFromNode,
   getPairFromNode,
   getPairIdFromNode,
@@ -15,7 +16,8 @@ import { addHiddenId, removeHiddenId, setHiddenIds } from "~/lib/hide-css"
 import {
   ensureEyeOverlay,
   removeEyeOverlay,
-  scheduleRepositionBurst
+  scheduleRepositionBurst,
+  setScrollContainer
 } from "~/lib/overlay"
 import { installRouteListener, ROUTE_EVENT_NAME } from "~/lib/route"
 import {
@@ -165,6 +167,9 @@ export default function ContentScript() {
       // cleanup previous attach
       detachContainer?.()
       const container = findFeedContainer() || document.body
+
+      const scroller = findScrollContainer() || document.body
+      setScrollContainer(scroller)
 
       // initial hidden CSS + scan
       const hidden = await getHiddenSet()
