@@ -19,7 +19,7 @@
 }
 
 .dslh-overlay-btn {
-	background: none; border: 0; padding: 0; z-index: 10;
+	background: none; border: 0; padding: 0;
 }
 
 .dslh-eye-btn:hover { opacity: 1; transform: scale(1.08); }

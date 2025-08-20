@@ -169,6 +169,7 @@ export default function ContentScript() {
       const container = findFeedContainer() || document.body
 
       const scroller = findScrollContainer() || document.body
+      console.log(scroller)
       setScrollContainer(scroller)
 
       // initial hidden CSS + scan

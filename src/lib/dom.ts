@@ -12,7 +12,8 @@ export function findFeedContainer(): HTMLElement | null {
 
 export function findScrollContainer(): HTMLElement | null {
   return (
-    document.querySelector<HTMLElement>("main > div > div:nth-child(2)") ||
+    // document.querySelector<HTMLElement>("main > div > div:nth-child(2)") ||
+    document.querySelector<HTMLElement>("main > div") ||
     (document.scrollingElement as HTMLElement) ||
     document.documentElement
   )
