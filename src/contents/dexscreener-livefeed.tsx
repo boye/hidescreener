@@ -19,7 +19,13 @@ import {
   scheduleRepositionBurst,
   setScrollContainer
 } from "~/lib/overlay"
+import {
+  attachHoverPreview,
+  hidePreviewNow,
+  setPreviewScrollContainer
+} from "~/lib/preview"
 import { installRouteListener, ROUTE_EVENT_NAME } from "~/lib/route"
+import { getSettings } from "~/lib/settings"
 import {
   clearAllHidden,
   getHiddenList,
@@ -27,6 +33,7 @@ import {
   hidePair,
   unhidePair
 } from "~/lib/storage"
+import { parseChainAndIdFromHref } from "~/lib/url"
 
 import "~/styles/content.css"
 
@@ -48,13 +55,28 @@ async function processRow(row: HTMLAnchorElement, hidden: Set<string>) {
     removeEyeOverlay(row)
     return
   }
-  ensureEyeOverlay(row, async () => {
-    await hidePair(id, row.href, symbols, chain)
-    addHiddenId(id)
-    removeEyeOverlay(row)
-    document.dispatchEvent(new CustomEvent("dslh:refresh"))
-    scheduleRepositionBurst(300)
-  })
+  ensureEyeOverlay(
+    row,
+    async () => {
+      await hidePair(id, row.href, symbols, chain)
+      addHiddenId(id)
+      removeEyeOverlay(row)
+      hidePreviewNow()
+      document.dispatchEvent(new CustomEvent("dslh:refresh"))
+      scheduleRepositionBurst(300)
+    }, // onReady: wire hover preview
+    (btn) => {
+      attachHoverPreview(btn, () => {
+        const a = (
+          row instanceof HTMLAnchorElement
+            ? row
+            : // @ts-ignore
+              row.querySelector("a.ds-dex-table-row")
+        ) as HTMLAnchorElement | null
+        return a?.href || null
+      })
+    }
+  )
 }
 
 function scanAndEnhance(container: HTMLElement, hidden: Set<string>) {
@@ -169,8 +191,8 @@ export default function ContentScript() {
       const container = findFeedContainer() || document.body
 
       const scroller = findScrollContainer() || document.body
-      console.log(scroller)
       setScrollContainer(scroller)
+      setPreviewScrollContainer(scroller)
 
       // initial hidden CSS + scan
       const hidden = await getHiddenSet()

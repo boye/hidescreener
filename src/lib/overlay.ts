@@ -75,8 +75,16 @@ function positionBtn(row: HTMLElement, btn: HTMLButtonElement) {
   btn.style.top = `${y}px`
 }
 
-export function ensureEyeOverlay(row: HTMLElement, onClick: () => void) {
-  if (btnByRow.has(row)) return
+export function ensureEyeOverlay(
+  row: HTMLElement,
+  onClick: () => void,
+  onReady?: (btn: HTMLButtonElement) => void
+) {
+  const existing = btnByRow.get(row)
+  if (existing) {
+    onReady?.(existing)
+    return
+  }
   const root = getOverlayRoot()
   const btn = document.createElement("button")
   btn.type = "button"
@@ -103,6 +111,8 @@ export function ensureEyeOverlay(row: HTMLElement, onClick: () => void) {
   } else {
     btn.style.display = "none"
   }
+
+  onReady?.(btn)
 }
 
 export function removeEyeOverlay(row: HTMLElement) {
