@@ -83,23 +83,32 @@ html, body {
 	gap: 6px;
 }
 
+/* Make sizing predictable */
+.popup, .popup * { box-sizing: border-box; }
+
+/* Two-column grid with explicit gaps; prevent items from overflowing columns */
 .grid-2 {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 8px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 12px;     /* horizontal gap */
+	row-gap: 10px;        /* vertical gap */
 	margin-top: 8px;
-	align-items: center;
+	align-items: start;
 }
 
+/* Ensure grid items can shrink and don’t push into each other */
+.grid-2 > label { min-width: 0; }
+
+/* Label text ↔ input spacing */
 label {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 6px;             /* space between label text and input */
 	font-size: 11px;
 	color: var(--muted);
 }
 
-/* Inputs */
+/* Inputs fill their cell and honor gaps */
 input[type="number"],
 input[type="text"] {
 	width: 100%;
@@ -109,12 +118,6 @@ input[type="text"] {
 	background: var(--bg);
 	color: var(--text);
 	outline: none;
-}
-input[type="number"]:focus,
-input[type="text"]:focus {
-	border-color: var(--focus);
-	/* nice, subtle focus ring where supported */
-	box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus) 25%, transparent);
 }
 
 .switch {

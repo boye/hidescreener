@@ -25,7 +25,6 @@ import {
   setPreviewScrollContainer
 } from "~/lib/preview"
 import { installRouteListener, ROUTE_EVENT_NAME } from "~/lib/route"
-import { getSettings } from "~/lib/settings"
 import {
   clearAllHidden,
   getHiddenList,
@@ -33,7 +32,6 @@ import {
   hidePair,
   unhidePair
 } from "~/lib/storage"
-import { parseChainAndIdFromHref } from "~/lib/url"
 
 import "~/styles/content.css"
 
@@ -111,7 +109,10 @@ function Panel() {
       <div
         className="dslh-chip"
         role="button"
-        onClick={() => setOpen((v) => !v)}>
+        onClick={() => {
+          setOpen((v) => !v)
+          hidePreviewNow() // hide preview on toggle
+        }}>
         Hidden: {count}
       </div>
       {open && (
