@@ -5,9 +5,21 @@ export function isDexscreener(): boolean {
 
 export function findFeedContainer(): HTMLElement | null {
   // Dexscreener livefeed container
-  return (
-    document.querySelector<HTMLElement>("div.ds-dex-table") || document.body
-  )
+  return document.querySelector<HTMLElement>(".ds-dex-table")
+}
+
+export function findScrollableAncestor(el: Element | null): HTMLElement | null {
+  let cur = el?.parentElement
+  while (cur && cur !== document.documentElement) {
+    const cs = getComputedStyle(cur)
+    const oy = cs.overflowY
+    const canScroll =
+      (oy === "auto" || oy === "scroll") &&
+      cur.scrollHeight > cur.clientHeight + 2
+    if (canScroll) return cur as HTMLElement
+    cur = cur.parentElement
+  }
+  return null
 }
 
 export function findScrollContainer(): HTMLElement | null {

@@ -10,7 +10,7 @@ export default function Popup() {
   const [count, setCount] = React.useState(0)
 
   const [enabled, setEnabled] = React.useState(false)
-  const [delay, setDelay] = React.useState(350)
+  const [delay, setDelay] = React.useState(1500)
   const [dismiss, setDismiss] = React.useState(300)
   const [w, setW] = React.useState(420)
   const [h, setH] = React.useState(280)

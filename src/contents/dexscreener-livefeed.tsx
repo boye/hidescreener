@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 
 import {
   findFeedContainer,
+  findScrollableAncestor,
   findScrollContainer,
   getChainFromNode,
   getPairFromNode,
@@ -26,15 +27,17 @@ import {
 } from "~/lib/preview"
 import { installRouteListener, ROUTE_EVENT_NAME } from "~/lib/route"
 import {
-  clearAllHidden,
-  getHiddenList,
-  getHiddenSet,
-  hidePair,
-  unhidePair
-} from "~/lib/storage"
+  getCachedHidden,
+  safeClearAll,
+  safeGetHiddenList,
+  safeGetHiddenSet,
+  safeHidePair,
+  safeUnhidePair
+} from "~/lib/safe-storage"
 
 import "~/styles/content.css"
 
+import { waitForStableDOM } from "~lib/stability"
 import type { HiddenEntry } from "~types"
 
 export const config: PlasmoCSConfig = {
@@ -47,6 +50,7 @@ async function processRow(row: HTMLAnchorElement, hidden: Set<string>) {
   const id = getPairIdFromNode(row)
   const symbols = getPairFromNode(row)
   const chain = getChainFromNode(row)
+
   if (!id) return
   if (hidden.has(id)) {
     // Row disappears via CSS; remove overlay
@@ -56,7 +60,7 @@ async function processRow(row: HTMLAnchorElement, hidden: Set<string>) {
   ensureEyeOverlay(
     row,
     async () => {
-      await hidePair(id, row.href, symbols, chain)
+      await safeHidePair(id, row.href, symbols, chain)
       addHiddenId(id)
       removeEyeOverlay(row)
       hidePreviewNow()
@@ -92,7 +96,7 @@ function Panel() {
   const [count, setCount] = useState(0)
 
   const refresh = async () => {
-    const list = await getHiddenList()
+    const list = await safeGetHiddenList()
     setItems(list.sort((a, b) => b.ts - a.ts))
     setCount(list.length)
   }
@@ -125,7 +129,8 @@ function Panel() {
               <button
                 className={clsx("dslh-btn dslh-ghost")}
                 onClick={async () => {
-                  await unhidePair(e.id)
+                  await safeUnhidePair(e.id)
+                  hidePreviewNow()
                   removeHiddenId(e.id) // triggers css-change event
                   document.dispatchEvent(new CustomEvent("dslh:refresh"))
                 }}>
@@ -149,7 +154,7 @@ function Panel() {
               <button
                 className="dslh-btn dslh-danger"
                 onClick={async () => {
-                  await clearAllHidden()
+                  await safeClearAll()
                   setHiddenIds(new Set())
                   document.dispatchEvent(new CustomEvent("dslh:refresh"))
                 }}>
@@ -189,20 +194,40 @@ export default function ContentScript() {
     const attachToContainer = async () => {
       // cleanup previous attach
       detachContainer?.()
-      const container = findFeedContainer() || document.body
+      const container = findFeedContainer()
 
-      const scroller = findScrollContainer() || document.body
+      if (!container) {
+        console.log("DSLH: no feed container found")
+        return
+      }
+
+      const scroller = findScrollableAncestor(container)
+
+      if (!scroller) {
+        console.log("DSLH: no scrollable ancestor found")
+        return
+      }
+
+      // console.log(
+      //   "DSLH: attaching to container",
+      //   container,
+      //   "scroller",
+      //   scroller
+      // )
+
       setScrollContainer(scroller)
       setPreviewScrollContainer(scroller)
 
+      await waitForStableDOM(container, { quietMs: 400, timeoutMs: 4000 })
+
       // initial hidden CSS + scan
-      const hidden = await getHiddenSet()
+      const hidden = await safeGetHiddenSet()
       setHiddenIds(hidden)
       scanAndEnhance(container, hidden)
 
       // Observer for dynamic items
       const observer = new MutationObserver(async (muts) => {
-        const freshHidden = await getHiddenSet()
+        const freshHidden = await safeGetHiddenSet()
         for (const mut of muts) {
           mut.addedNodes.forEach((n) => {
             if (n instanceof HTMLElement) {
@@ -248,7 +273,7 @@ export default function ContentScript() {
       const onCssChange = async (e: any) => {
         scheduleRepositionBurst(400)
         const detail = e?.detail as { action?: string; id?: string } | undefined
-        const freshHidden = await getHiddenSet()
+        const freshHidden = getCachedHidden()
 
         if (detail?.action === "remove" && detail.id) {
           const sel =
@@ -276,20 +301,56 @@ export default function ContentScript() {
       }
     }
 
-    // Init + route watcher
-    const reattachSoon = () => {
-      // 2 RAFs to give SPA DOM-swaps room
+    // Debounced hard reattach (2× RAF to let the SPA paint)
+    const hardReattach = () => {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => attachToContainer())
       )
     }
-    reattachSoon()
+
+    // 🔽 NEW: light refresh for querystring-only changes
+    const lightRefresh = () => {
+      const container = findFeedContainer() || document.body
+      const hidden = getCachedHidden() // no storage call
+      scanAndEnhance(container, hidden)
+      scheduleRepositionBurst(400)
+    }
+
+    // First mount
+    // console.log("DSLH: initializing")
+    hardReattach()
+
+    // Init + route watcher
+    const onRoute = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { kind: "path" | "search" | "hash"; [k: string]: any }
+        | undefined
+
+      if (!detail) {
+        hardReattach()
+        return
+      }
+
+      if (detail.kind === "path") {
+        // console.log("DSLH: route change detected → reattaching")
+        // full view change → tear down and reattach
+        setTimeout(hardReattach, 1000)
+      } else if (detail.kind === "search") {
+        // console.log("DSLH: query change detected → light refresh")
+        // filters / sorting reflected in ?query → light refresh only
+        lightRefresh()
+      } else {
+        // console.log("DSLH: hash change detected → reposition")
+        // hash-only → minor layout shifts; just reposition
+        scheduleRepositionBurst(250)
+      }
+    }
 
     detachRoute = installRouteListener()
-    document.addEventListener(ROUTE_EVENT_NAME, reattachSoon)
+    document.addEventListener(ROUTE_EVENT_NAME, onRoute)
 
     return () => {
-      document.removeEventListener(ROUTE_EVENT_NAME, reattachSoon)
+      document.removeEventListener(ROUTE_EVENT_NAME, onRoute)
       detachContainer?.()
       detachRoute?.()
     }
