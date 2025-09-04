@@ -6,6 +6,7 @@ export interface Settings {
   previewDismissMs: number // <-- NEW: grace delay before hiding
   previewWidth: number
   previewHeight: number
+  refreshIntervalSec: number
 }
 
 const storage = new Storage({ area: "local" })
@@ -16,7 +17,8 @@ export const DEFAULTS: Settings = {
   previewDelayMs: 350,
   previewDismissMs: 300, // sensible default
   previewWidth: 420,
-  previewHeight: 280
+  previewHeight: 280,
+  refreshIntervalSec: 30 // <-- NEW: default 30s (0 disables)
 }
 
 export async function getSettings(): Promise<Settings> {

@@ -14,6 +14,7 @@ export default function Popup() {
   const [dismiss, setDismiss] = React.useState(300)
   const [w, setW] = React.useState(420)
   const [h, setH] = React.useState(280)
+  const [intervalSec, setIntervalSec] = React.useState(30) // <-- NEW
 
   // Load data
   const refreshHidden = async () => setCount((await getHiddenList()).length)
@@ -71,7 +72,10 @@ export default function Popup() {
         />
         <span>Enable on hover over eye icon</span>
       </label>
-
+      <p className="small">
+        The preview uses Dexscreener&apos;s embed URL and shows only the chart.
+        You can adjust the delay and size here.
+      </p>
       <div className="grid-2">
         <label>
           Delay (ms)
@@ -113,11 +117,24 @@ export default function Popup() {
             onBlur={() => apply({ previewHeight: Math.max(160, h | 0) })}
           />
         </label>
+        <label>
+          Refresh interval (s)
+          <input
+            type="number"
+            min={0}
+            value={intervalSec}
+            onChange={(e) =>
+              setIntervalSec(parseInt(e.target.value || "0", 10))
+            }
+            onBlur={() =>
+              apply({ refreshIntervalSec: Math.max(0, intervalSec | 0) })
+            }
+          />
+        </label>
       </div>
 
       <p className="small">
-        The preview uses Dexscreener&apos;s embed URL and shows only the chart.
-        You can adjust the delay and size here.
+        Set “Refresh interval” to 0 to disable automatic refresh
       </p>
     </div>
   )

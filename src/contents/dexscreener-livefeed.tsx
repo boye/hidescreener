@@ -6,7 +6,6 @@ import { createRoot } from "react-dom/client"
 import {
   findFeedContainer,
   findScrollableAncestor,
-  findScrollContainer,
   getChainFromNode,
   getPairFromNode,
   getPairIdFromNode,
@@ -37,6 +36,7 @@ import {
 
 import "~/styles/content.css"
 
+import { getSettings } from "~lib/settings"
 import { waitForStableDOM } from "~lib/stability"
 import type { HiddenEntry } from "~types"
 
@@ -189,6 +189,29 @@ export default function ContentScript() {
 
     let detachRoute: (() => void) | null = null
     let detachContainer: (() => void) | null = null
+    let refreshTimer: number | null = null
+
+    const startRefreshTicker = async () => {
+      // (re)start based on settings.refreshIntervalSec
+      if (refreshTimer != null) {
+        clearInterval(refreshTimer)
+        refreshTimer = null
+      }
+      try {
+        const s = await getSettings()
+        const sec = Math.max(0, s.refreshIntervalSec | 0)
+        // console.log("DSLH: refresh interval", sec, "sec")
+        if (sec > 0) {
+          refreshTimer = window.setInterval(() => {
+            // A short burst is fine – it recalculates visibility + occlusion.
+            // console.log("DSLH: periodic refresh")
+            scheduleRepositionBurst(300)
+          }, sec * 1000)
+        }
+      } catch {
+        // ignore – keep timer off if settings retrieval fails
+      }
+    }
 
     // Function that mounts the container (MO, listeners) and performs initial scan
     const attachToContainer = async () => {
@@ -207,13 +230,6 @@ export default function ContentScript() {
         console.log("DSLH: no scrollable ancestor found")
         return
       }
-
-      // console.log(
-      //   "DSLH: attaching to container",
-      //   container,
-      //   "scroller",
-      //   scroller
-      // )
 
       setScrollContainer(scroller)
       setPreviewScrollContainer(scroller)
@@ -299,6 +315,8 @@ export default function ContentScript() {
         container.removeEventListener("transitionend", burst, true)
         document.removeEventListener("dslh:css-change", onCssChange as any)
       }
+
+      await startRefreshTicker()
     }
 
     // Debounced hard reattach (2× RAF to let the SPA paint)
@@ -344,6 +362,8 @@ export default function ContentScript() {
         // hash-only → minor layout shifts; just reposition
         scheduleRepositionBurst(250)
       }
+
+      startRefreshTicker()
     }
 
     detachRoute = installRouteListener()
