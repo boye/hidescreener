@@ -1,7 +1,7 @@
 {
   "name": "hidescreener",
   "displayName": "Hidescreener",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Expands Dexscreener functionality by giving the ability to hide (or unhide) pairs in the livefeed.",
   "author": "Boye <boye@frontsight.dev>",
   "scripts": {

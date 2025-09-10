@@ -12,7 +12,17 @@ import {
   isDexscreener,
   isPairRow
 } from "~/lib/dom"
-import { addHiddenId, removeHiddenId, setHiddenIds } from "~/lib/hide-css"
+import {
+  addHiddenId as cssAddHiddenId,
+  removeHiddenId as cssRemoveHiddenId,
+  setHiddenIds as cssSetHiddenIds
+} from "~/lib/hide-css"
+import {
+  applyMarksInContainer,
+  ensureMarkCss,
+  setRowHidden,
+  unmarkById
+} from "~/lib/mark-hide"
 import {
   ensureEyeOverlay,
   removeEyeOverlay,
@@ -26,6 +36,14 @@ import {
 } from "~/lib/preview"
 import { installRouteListener, ROUTE_EVENT_NAME } from "~/lib/route"
 import {
+  getCachedArchiveSet,
+  safeArchiveIds,
+  safeClearArchive,
+  safeGetArchiveList,
+  safeGetArchiveSet,
+  safeUnarchiveId
+} from "~/lib/safe-archive"
+import {
   getCachedHidden,
   safeClearAll,
   safeGetHiddenList,
@@ -36,6 +54,7 @@ import {
 
 import "~/styles/content.css"
 
+import type { ArchiveEntry } from "~lib/archive"
 import { getSettings } from "~lib/settings"
 import { waitForStableDOM } from "~lib/stability"
 import type { HiddenEntry } from "~types"
@@ -46,23 +65,36 @@ export const config: PlasmoCSConfig = {
   all_frames: false
 }
 
+// Use DOM marking when the hidden list is large
+const HIGH_VOLUME_THRESHOLD = 0 // tweak as needed
+const useMarkModeRef = { current: false } // mutable ref
+
 async function processRow(row: HTMLAnchorElement, hidden: Set<string>) {
   const id = getPairIdFromNode(row)
   const symbols = getPairFromNode(row)
   const chain = getChainFromNode(row)
 
   if (!id) return
-  if (hidden.has(id)) {
-    // Row disappears via CSS; remove overlay
-    removeEyeOverlay(row)
-    return
+  // Respect current mode for initial state
+  if (useMarkModeRef.current) {
+    setRowHidden(row, hidden.has(id))
+  } else {
+    if (hidden.has(id)) {
+      removeEyeOverlay(row)
+      return
+    }
   }
+
   ensureEyeOverlay(
     row,
     async () => {
       await safeHidePair(id, row.href, symbols, chain)
-      addHiddenId(id)
-      removeEyeOverlay(row)
+      if (useMarkModeRef.current) {
+        setRowHidden(row, true)
+      } else {
+        cssAddHiddenId(id)
+        removeEyeOverlay(row)
+      }
       hidePreviewNow()
       document.dispatchEvent(new CustomEvent("dslh:refresh"))
       scheduleRepositionBurst(300)
@@ -92,13 +124,44 @@ function scanAndEnhance(container: HTMLElement, hidden: Set<string>) {
 
 function Panel() {
   const [open, setOpen] = useState(false)
-  const [items, setItems] = useState<HiddenEntry[]>([])
-  const [count, setCount] = useState(0)
+  const [hiddenItems, setHiddenItems] = useState<HiddenEntry[]>([])
+  const [hiddenCount, setHiddenCount] = useState(0)
+  const [archivedItems, setArchivedItems] = useState<ArchiveEntry[]>([])
+  const [archivedCount, setArchivedCount] = useState(0)
+  const [showArchived, setShowArchived] = useState(false)
 
   const refresh = async () => {
-    const list = await safeGetHiddenList()
-    setItems(list.sort((a, b) => b.ts - a.ts))
-    setCount(list.length)
+    // get hidden + archive; filter hidden by archive-set
+    const [allHidden, archSet, archList] = await Promise.all([
+      safeGetHiddenList(),
+      safeGetArchiveSet(),
+      safeGetArchiveList()
+    ])
+
+    const activeHidden = allHidden
+      .filter((e) => !archSet.has(e.id))
+      .sort((a, b) => b.ts - a.ts)
+    setHiddenItems(activeHidden)
+    setHiddenCount(activeHidden.length)
+
+    const sortedArchived = archList.slice().sort((a, b) => b.at - a.at)
+    setArchivedItems(sortedArchived)
+    setArchivedCount(sortedArchived.length)
+  }
+
+  const doArchiveAll = async () => {
+    if (hiddenItems.length === 0) return
+    const ids = hiddenItems.map((e) => e.id)
+    await safeArchiveIds(ids)
+    document.dispatchEvent(new CustomEvent("dslh:refresh"))
+  }
+
+  const doUnarchiveAll = async () => {
+    if (archivedItems.length === 0) return
+    for (const e of archivedItems) {
+      await safeUnarchiveId(e.id)
+    }
+    document.dispatchEvent(new CustomEvent("dslh:refresh"))
   }
 
   useEffect(() => {
@@ -117,21 +180,57 @@ function Panel() {
           setOpen((v) => !v)
           hidePreviewNow() // hide preview on toggle
         }}>
-        Hidden: {count}
+        Hidden: {hiddenCount} • Archived: {archivedCount}
       </div>
       {open && (
-        <div className="dslh-list" role="dialog" aria-label="Hidden pairs">
-          {items.length === 0 && (
+        <div
+          className="dslh-list"
+          role="dialog"
+          aria-label="Hidden & Archive lists">
+          <div className="dslh-row" style={{ justifyContent: "space-between" }}>
+            <strong>Hidden</strong>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="dslh-btn dslh-ghost"
+                onClick={doArchiveAll}
+                disabled={hiddenItems.length === 0}>
+                Archive all
+              </button>
+              <button
+                className="dslh-btn dslh-danger"
+                onClick={async () => {
+                  await safeClearAll()
+                  // Keep archive as-is; only clear hidden state
+                  if (useMarkModeRef?.current) {
+                    const container = findFeedContainer() || document.body
+                    container
+                      .querySelectorAll(".dslh-hidden")
+                      .forEach((el) => el.classList.remove("dslh-hidden"))
+                  } else {
+                    cssSetHiddenIds(new Set())
+                  }
+                  document.dispatchEvent(new CustomEvent("dslh:refresh"))
+                }}
+                disabled={hiddenItems.length === 0}>
+                Clear all hidden
+              </button>
+            </div>
+          </div>
+          {hiddenItems.length === 0 && (
             <div className="dslh-row">No hidden pairs.</div>
           )}
-          {items.map((e) => (
+          {hiddenItems.map((e) => (
             <div className="dslh-row" key={e.id}>
               <button
                 className={clsx("dslh-btn dslh-ghost")}
                 onClick={async () => {
                   await safeUnhidePair(e.id)
                   hidePreviewNow()
-                  removeHiddenId(e.id) // triggers css-change event
+                  if (useMarkModeRef.current) {
+                    unmarkById(findFeedContainer() || document.body, e.id)
+                  } else {
+                    cssRemoveHiddenId(e.id)
+                  }
                   document.dispatchEvent(new CustomEvent("dslh:refresh"))
                 }}>
                 Unhide
@@ -147,26 +246,76 @@ function Panel() {
               </a>
             </div>
           ))}
-          {items.length > 0 && (
-            <div
-              className="dslh-row"
-              style={{ justifyContent: "space-between" }}>
+          {/* Archived section */}
+          <div
+            className="dslh-row"
+            style={{ justifyContent: "space-between", marginTop: 8 }}>
+            <strong>Archived</strong>
+            <div style={{ display: "flex", gap: 8 }}>
               <button
-                className="dslh-btn dslh-danger"
-                onClick={async () => {
-                  await safeClearAll()
-                  setHiddenIds(new Set())
-                  document.dispatchEvent(new CustomEvent("dslh:refresh"))
-                }}>
-                Clear all
+                className="dslh-btn dslh-ghost"
+                onClick={() => setShowArchived((v) => !v)}
+                title={
+                  showArchived ? "Hide archived list" : "Show archived list"
+                }>
+                {showArchived ? "Hide" : "Show"}
               </button>
               <button
                 className="dslh-btn dslh-ghost"
-                onClick={() => setOpen(false)}>
-                Close
+                onClick={doUnarchiveAll}
+                disabled={archivedItems.length === 0}>
+                Unarchive all
+              </button>
+              <button
+                className="dslh-btn dslh-ghost"
+                onClick={async () => {
+                  await safeClearArchive()
+                  document.dispatchEvent(new CustomEvent("dslh:refresh"))
+                }}
+                disabled={archivedItems.length === 0}>
+                Clear archive
               </button>
             </div>
+          </div>
+
+          {showArchived && (
+            <>
+              {archivedItems.length === 0 && (
+                <div className="dslh-row">Archive is empty.</div>
+              )}
+              {archivedItems.map((e) => (
+                <div className="dslh-row" key={e.id}>
+                  <button
+                    className="dslh-btn dslh-ghost"
+                    onClick={async () => {
+                      await safeUnarchiveId(e.id)
+                      document.dispatchEvent(new CustomEvent("dslh:refresh"))
+                    }}>
+                    Unarchive
+                  </button>
+                  <a
+                    href={`https://dexscreener.com/ethereum/${e.id}`}
+                    target="_blank"
+                    rel="noreferrer">
+                    {e.id}
+                  </a>
+                  <span
+                    style={{ marginLeft: "auto", opacity: 0.6, fontSize: 11 }}>
+                    {new Date(e.at).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </>
           )}
+
+          {/* Footer */}
+          <div className="dslh-row" style={{ justifyContent: "flex-end" }}>
+            <button
+              className="dslh-btn dslh-ghost"
+              onClick={() => setOpen(false)}>
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -238,7 +387,18 @@ export default function ContentScript() {
 
       // initial hidden CSS + scan
       const hidden = await safeGetHiddenSet()
-      setHiddenIds(hidden)
+
+      // Decide mode
+      useMarkModeRef.current = hidden.size >= HIGH_VOLUME_THRESHOLD
+
+      if (useMarkModeRef.current) {
+        ensureMarkCss()
+        applyMarksInContainer(container, hidden) // O(rows) not O(hidden)
+      } else {
+        cssSetHiddenIds(hidden) // legacy CSS selectors (fine for small sets)
+      }
+
+      // Scan overlays (independent of hide strategy)
       scanAndEnhance(container, hidden)
 
       // Observer for dynamic items
@@ -248,10 +408,19 @@ export default function ContentScript() {
           mut.addedNodes.forEach((n) => {
             if (n instanceof HTMLElement) {
               if (isPairRow(n)) {
+                // Apply mark if in mark mode
+                if (useMarkModeRef.current) {
+                  const id = getPairIdFromNode(n)
+                  if (id) setRowHidden(n, freshHidden.has(id))
+                }
                 processRow(n as unknown as HTMLAnchorElement, freshHidden)
               } else {
                 // @ts-ignore
                 n.querySelectorAll("a.ds-dex-table-row").forEach((a) => {
+                  if (useMarkModeRef.current) {
+                    const id = getPairIdFromNode(n)
+                    if (id) setRowHidden(n, freshHidden.has(id))
+                  }
                   processRow(a as unknown as HTMLAnchorElement, freshHidden)
                 })
               }

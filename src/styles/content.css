@@ -14,6 +14,10 @@
 	color: inherit;
 }
 
+.dslh-eye-btn:disabled {
+	opacity: 0.3; cursor: not-allowed;
+}
+
 [data-theme="dark"] .dslh-eye-btn {
 	fill: #fff;
 }
@@ -29,12 +33,12 @@
 	font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 .dslh-chip {
-	background: rgba(0,0,0,.65); color: #fff; border-radius: 999px;
+	background: rgba(77, 109, 229,.65); color: #fff; border-radius: 999px;
 	padding: 8px 12px; backdrop-filter: blur(6px);
 	box-shadow: 0 4px 16px rgba(0,0,0,.25);
 }
 .dslh-list {
-	margin-top: 8px; max-width: 420px; max-height: 420px; overflow: auto;
+	margin-top: 8px; min-width: 600px; max-width: 620px; max-height: 420px; overflow: auto;
 	background: rgba(18, 18, 18, .9); color: #fff; border-radius: 12px; padding: 8px;
 }
 .dslh-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; }
